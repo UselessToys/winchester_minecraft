@@ -377,7 +377,7 @@ class MainWindow(QMainWindow):
         controls_layout = QVBoxLayout()
 
         # Sliders
-        self.scale_slider = self.create_slider(1, 50, int(self.scale), "Scale")
+        self.scale_slider = self.create_slider(1, 50, int(self.scale * 10), "Scale")  # Adjusted for scaling
         self.octaves_slider = self.create_slider(1, 10, self.octaves, "Octaves")
         self.persistence_slider = self.create_slider(1, 100, int(self.persistence * 100), "Persistence")
         self.lacunarity_slider = self.create_slider(1, 100, int(self.lacunarity * 100), "Lacunarity")
@@ -427,12 +427,11 @@ class MainWindow(QMainWindow):
 
         self.show()
 
-    def create_slider(self, min_val: int, max_val: int, default_val: int, label_text: str) -> QWidget:
+    def create_slider(self, min_val: int, max_val: int, default_val: int, label_text: str) -> QSlider:
         """Creates a slider with a label."""
         slider = QSlider(Qt.Orientation.Horizontal)
         slider.setRange(min_val, max_val)
         slider.setValue(default_val)
-        slider.valueChanged.connect(self.update_parameters)
 
         label = QLabel(label_text)
         value_label = QLabel(str(default_val))
@@ -445,13 +444,12 @@ class MainWindow(QMainWindow):
         slider_layout.addWidget(value_label)
         layout.addLayout(slider_layout)
 
-        widget = QWidget()
-        widget.setLayout(layout)
-        return widget
+        # Return the slider directly
+        return slider
 
     def update_parameters(self):
         """Updates the landscape parameters based on slider values."""
-        self.scale = self.scale_slider.value()
+        self.scale = self.scale_slider.value() / 10.0  # Adjusted for scaling
         self.octaves = self.octaves_slider.value()
         self.persistence = self.persistence_slider.value() / 100.0
         self.lacunarity = self.lacunarity_slider.value() / 100.0
