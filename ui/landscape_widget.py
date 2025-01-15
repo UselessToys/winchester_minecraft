@@ -1,13 +1,34 @@
+"""
+Landscape Widget Module
+
+This module defines the LandscapeWidget class, a custom QWidget for rendering 
+and interacting with the Minecraft landscape in the Winchester's Minecraft 
+World Generator application. It handles the display of the generated landscape, 
+user interactions like panning and zooming, and provides visual feedback for 
+selected blocks and entities. The widget uses PyQt6 for rendering and event 
+handling.
+
+Classes:
+    LandscapeWidget: A QWidget subclass for rendering and interacting with the Minecraft landscape.
+"""
 from typing import List, Dict, Any
 from PyQt6.QtWidgets import QWidget, QApplication, QMessageBox
 from PyQt6.QtGui import QImage, QPainter, QColor, QPen, QFont
 from PyQt6.QtCore import Qt, QTimer
 import logging
+from core.biome import BiomeType
 
 class LandscapeWidget(QWidget):
     """Widget for rendering the Minecraft landscape and handling user interactions."""
 
     def __init__(self, width: int, height: int):
+        """
+        Initializes the LandscapeWidget with a given width and height.
+
+        Args:
+            width (int): The width of the widget.
+            height (int): The height of the widget.
+        """
         super().__init__()
         self.width = width
         self.height = height
@@ -25,15 +46,23 @@ class LandscapeWidget(QWidget):
         self.init_ui()
 
     def init_ui(self):
+        """Initializes the UI components of the widget."""
         self.setMinimumSize(self.width, self.height)
         self.setMouseTracking(True)  # Enable mouse tracking for hover events
 
     def set_landscape(self, landscape: List[List[Dict[str, Any]]]):
+        """
+        Sets the landscape data for the widget to render.
+
+        Args:
+            landscape (List[List[Dict[str, Any]]]): The landscape data.
+        """
         self.landscape = landscape
         self.update_image()
         self.update()
 
     def update_image(self):
+        """Updates the image to be rendered based on the current landscape data."""
         if self.landscape is None:
             return
 
@@ -45,9 +74,8 @@ class LandscapeWidget(QWidget):
             (self.height - len(self.landscape) * block_size) / 2 + self.pan_offset[1]
         )
 
-        for y in range(self.height):
-            for x in range(self.width):
-                self.image.setPixelColor(x, y, QColor("white"))
+        painter = QPainter(self.image)
+        painter.fillRect(self.image.rect(), Qt.GlobalColor.white)
 
         for y in range(len(self.landscape)):
             for x in range(len(self.landscape[0])):
@@ -56,7 +84,6 @@ class LandscapeWidget(QWidget):
                 biome_type = data["biome"]
                 feature = data.get("feature")
 
-                # Calculate block position based on zoom and pan
                 block_x = int(base_offset_x + x * block_size)
                 block_y = int(base_offset_y + y * block_size)
 
@@ -80,25 +107,25 @@ class LandscapeWidget(QWidget):
                             color = QColor("gray")
                         else:
                             color = QColor("white")
-                        # Terrain shading
                         shade = int(height_value * 255)
                         color = QColor(shade, shade, shade)
 
-                    for px in range(int(block_size)):
-                        for py in range(int(block_size)):
-                            if (
-                                0 <= block_x + px < self.width
-                                and 0 <= block_y + py < self.height
-                            ):
-                                self.image.setPixelColor(
-                                    int(block_x + px), int(block_y + py), color
-                                )
+                    painter.fillRect(
+                        QRect(block_x, block_y, int(block_size), int(block_size)), color
+                    )
+
+        painter.end()
 
     def paintEvent(self, event):
+        """
+        Handles the paint event for the widget.
+
+        Args:
+            event (QPaintEvent): The paint event.
+        """
         painter = QPainter(self)
         painter.drawImage(self.rect(), self.image)
 
-        # Draw selected block highlight
         if self.selected_block:
             block_size = 5 * self.zoom_level
             base_offset_x = (
@@ -114,7 +141,6 @@ class LandscapeWidget(QWidget):
             painter.setPen(QPen(Qt.GlobalColor.red, 2))
             painter.drawRect(block_x, block_y, int(block_size), int(block_size))
 
-        # Display hover info
         if self.hover_info:
             info_text = f"Biome: {self.hover_info['biome'].value}\nHeight: {self.hover_info['height']:.2f}"
             if "feature" in self.hover_info:
@@ -124,9 +150,14 @@ class LandscapeWidget(QWidget):
             painter.drawText(10, 20, info_text)
 
     def mousePressEvent(self, event):
+        """
+        Handles the mouse press event for the widget.
+
+        Args:
+            event (QMouseEvent): The mouse event.
+        """
         self.last_mouse_pos = event.pos()
 
-        # Convert mouse position to landscape coordinates
         block_size = 5 * self.zoom_level
         base_offset_x = (
             (self.width - len(self.landscape[0]) * block_size) / 2 + self.pan_offset[0]
@@ -137,9 +168,9 @@ class LandscapeWidget(QWidget):
         x = int((event.pos().x() - base_offset_x) / block_size)
         y = int((event.pos().y() - base_offset_y) / block_size)
 
-        if 0 <= x < len(self.landscape[0]) and 0 <= y < len(self.landscape):
+        if self.landscape and 0 <= x < len(self.landscape[0]) and 0 <= y < len(self.landscape):
             self.selected_block = (x, y)
-            self.biome_info = self.landscape[y][x]["biome"]
+            self.biome_info = self.landscape[y][x]["biome"].value  # Get the biome value
             self.update()
         else:
             self.selected_block = None
@@ -147,6 +178,12 @@ class LandscapeWidget(QWidget):
             self.update()
 
     def mouseMoveEvent(self, event):
+        """
+        Handles the mouse move event for the widget.
+
+        Args:
+            event (QMouseEvent): The mouse event.
+        """
         if self.last_mouse_pos:
             dx = event.pos().x() - self.last_mouse_pos.x()
             dy = event.pos().y() - self.last_mouse_pos.y()
@@ -155,7 +192,6 @@ class LandscapeWidget(QWidget):
             self.update_image()
             self.update()
 
-        # Convert mouse position to landscape coordinates
         block_size = 5 * self.zoom_level
         base_offset_x = (
             (self.width - len(self.landscape[0]) * block_size) / 2 + self.pan_offset[0]
@@ -166,7 +202,7 @@ class LandscapeWidget(QWidget):
         x = int((event.pos().x() - base_offset_x) / block_size)
         y = int((event.pos().y() - base_offset_y) / block_size)
 
-        if 0 <= x < len(self.landscape[0]) and 0 <= y < len(self.landscape):
+        if self.landscape and 0 <= x < len(self.landscape[0]) and 0 <= y < len(self.landscape):
             self.hover_info = self.landscape[y][x]
             self.update()
         else:
@@ -174,9 +210,21 @@ class LandscapeWidget(QWidget):
             self.update()
 
     def mouseReleaseEvent(self, event):
+        """
+        Handles the mouse release event for the widget.
+
+        Args:
+            event (QMouseEvent): The mouse event.
+        """
         self.last_mouse_pos = None
 
     def wheelEvent(self, event):
+        """
+        Handles the mouse wheel event for the widget.
+
+        Args:
+            event (QWheelEvent): The wheel event.
+        """
         zoom_in = event.angleDelta().y() > 0
         if zoom_in:
             self.zoom_level = min(self.zoom_level + 0.1, 5.0)
