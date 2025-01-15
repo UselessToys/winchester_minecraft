@@ -2,12 +2,12 @@ from PyQt6.QtWidgets import QMainWindow, QFileDialog, QMessageBox, QWidget, QHBo
 from PyQt6 import uic
 from PyQt6.QtCore import QTimer, Qt
 from .landscape_widget import LandscapeWidget
-from core.generator import generate_advanced_landscape, add_biome_features
 from core.world import World
-from core.biome import BiomeType
-from core.entity import EntityType
+from core.biome import Biome, BiomeType
+from core.entity import Entity, EntityType
+from core.block import Block, BlockType
+from core.generator import generate_advanced_landscape, add_biome_features
 from utils.logger import get_logger
-
 logger = get_logger(__name__)
 
 class MainWindow(QMainWindow):
@@ -261,12 +261,190 @@ class MainWindow(QMainWindow):
                 QMessageBox.critical(self, "Error", "Failed to save image.")
 
     def create_and_log_world(self):
-        """Placeholder for creating and logging world data."""
-        # Implement world creation and logging logic here
-        pass
+        """Creates a Minecraft world with biomes, blocks, and entities, and logs its state."""
+        try:
+            # Generate the landscape
+            landscape = generate_advanced_landscape(
+                self.width,
+                self.height,
+                self.scale,
+                self.octaves,
+                self.persistence,
+                self.lacunarity,
+                self.sea_level,
+                self.biome_scale,
+            )
+            landscape = add_biome_features(
+                landscape, self.tree_density, self.water_level, self.cloud_density
+            )
+
+            # Create biomes based on the landscape
+            biomes = self.create_biomes_from_landscape(landscape)
+
+            # Create the world
+            my_world = create_world("My Awesome World", biomes)
+
+            # Update the world time
+            my_world.time = 18000  # Set to night
+
+            # Change the weather
+            my_world.weather = "rain"
+
+            # Log the world state
+            self.log_world_state(my_world)
+
+            # Update the UI
+            self.update_ui_with_world_info(my_world)
+
+            QMessageBox.information(
+                self, "World Created", "Minecraft world created and logged successfully."
+            )
+
+        except Exception as e:
+            logger.error(f"Error creating world: {e}")
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"An error occurred while creating the world:\n{e}",
+            )
+
+    def create_biomes_from_landscape(self, landscape):
+        """Creates biomes based on the landscape data."""
+        biomes = []
+        biome_positions = {}
+
+        for y in range(len(landscape)):
+            for x in range(len(landscape[0])):
+                biome_type = landscape[y][x]["biome"]
+                if biome_type not in biome_positions:
+                    biome_positions[biome_type] = []
+                biome_positions[biome_type].append((x, y))
+
+        for biome_type, positions in biome_positions.items():
+            blocks = []
+            entities = []
+            for x, y in positions:
+                height = int(landscape[y][x]["height"] * 10)  # Example height
+                if biome_type == BiomeType.PLAINS:
+                    blocks.extend(
+                        [
+                            create_block(x, y, 0, BlockType.GRASS),
+                            create_block(x, y, 1, BlockType.DIRT),
+                            create_block(x, y, 2, BlockType.DIRT),
+                        ]
+                    )
+                    if random.random() < 0.1:  # 10% chance to spawn a sheep
+                        entities.append(
+                            create_entity(x, y, 0, EntityType.SHEEP, 10)
+                        )
+                elif biome_type == BiomeType.DESERT:
+                    blocks.extend(
+                        [
+                            create_block(x, y, 0, BlockType.SAND),
+                            create_block(x, y, 1, BlockType.SAND),
+                            create_block(x, y, 2, BlockType.SANDSTONE),
+                        ]
+                    )
+                    if random.random() < 0.05:  # 5% chance to spawn a zombie
+                        entities.append(
+                            create_entity(x, y, 0, EntityType.ZOMBIE, 20)
+                        )
+                # Add more biome types and their logic here
+
+            # Create the biome instance
+            biome = create_biome(
+                biome_type.value.capitalize(),
+                biome_type,
+                blocks,
+                entities,
+                temperature=self.get_biome_temperature(biome_type),
+                humidity=self.get_biome_humidity(biome_type),
+            )
+            biomes.append(biome)
+
+        return biomes
+
+    def get_biome_temperature(self, biome_type):
+        """Returns the temperature for a given biome type."""
+        if biome_type == BiomeType.PLAINS:
+            return 0.8
+        elif biome_type == BiomeType.DESERT:
+            return 2.0
+        elif biome_type == BiomeType.FOREST:
+            return 0.7
+        elif biome_type == BiomeType.OCEAN:
+            return 0.5
+        elif biome_type == BiomeType.MOUNTAIN:
+            return 0.2
+        elif biome_type == BiomeType.TUNDRA:
+            return 0.0
+        elif biome_type == BiomeType.SAVANNA:
+            return 1.2
+        elif biome_type == BiomeType.SWAMP:
+            return 0.8
+        elif biome_type == BiomeType.TAIGA:
+            return 0.25
+        elif biome_type == BiomeType.JUNGLE:
+            return 0.95
+        else:
+            return 0.5  # Default temperature
+
+    def get_biome_humidity(self, biome_type):
+        """Returns the humidity for a given biome type."""
+        if biome_type == BiomeType.PLAINS:
+            return 0.4
+        elif biome_type == BiomeType.DESERT:
+            return 0.0
+        elif biome_type == BiomeType.FOREST:
+            return 0.8
+        elif biome_type == BiomeType.OCEAN:
+            return 0.9
+        elif biome_type == BiomeType.MOUNTAIN:
+            return 0.3
+        elif biome_type == BiomeType.TUNDRA:
+            return 0.2
+        elif biome_type == BiomeType.SAVANNA:
+            return 0.5
+        elif biome_type == BiomeType.SWAMP:
+            return 0.9
+        elif biome_type == BiomeType.TAIGA:
+            return 0.7
+        elif biome_type == BiomeType.JUNGLE:
+            return 0.9
+        else:
+            return 0.5  # Default humidity
+
+    def log_world_state(self, world):
+        """Logs the state of the world."""
+        log_message = f"World: {world.name}, Time: {world.time}, Weather: {world.weather}\n"
+        for biome in world.biomes:
+            log_message += f"  Biome: {biome.name}, Type: {biome.type}\n"
+            for block in biome.blocks:
+                log_message += (
+                    f"    Block at ({block.x}, {block.y}, {block.z}): {block.type}\n"
+                )
+            for entity in biome.entities:
+                log_message += f"    Entity at ({entity.x}, {entity.y}, {entity.z}): {entity.type}, Health: {entity.health}\n"
+
+        logger.info(log_message)
+
+    def update_ui_with_world_info(self, world):
+        """Updates the UI with information about the created world."""
+        world_info = f"World: {world.name}\n"
+        world_info += f"Time: {world.time}\n"
+        world_info += f"Weather: {world.weather}\n"
+        for biome in world.biomes:
+            world_info += f"\nBiome: {biome.name}, Type: {biome.type}\n"
+            world_info += f"Temperature: {biome.temperature}, Humidity: {biome.humidity}\n"
+            for block in biome.blocks:
+                world_info += f"  Block at ({block.x}, {block.y}, {block.z}): {block.type}\n"
+            for entity in biome.entities:
+                world_info += f"  Entity at ({entity.x}, {entity.y}, {entity.z}): {entity.type}, Health: {entity.health}\n"
+
+        self.world_info_text.setText(world_info)
 
 ### Wrapping Up the `ui` Folder
 
-With `main_window.py` and `landscape_widget.py` completed, we now have a fully functional UI for our Minecraft world generator. The `main_window.ui` file, created with Qt Designer, defines the layout, and our Python code brings it to life, connecting it with the backend logic in the `core` folder.
+## With `main_window.py` and `landscape_widget.py` completed, we now have a fully functional UI for our Minecraft world generator. The `main_window.ui` file, created with Qt Designer, defines the layout, and our Python code brings it to life, connecting it with the backend logic in the `core` folder.
 
-In the next phase, we'll focus on the `utils` folder, where we'll implement a logging utility to keep track of what's happening in our application. We're getting closer to a fully operational Minecraft world generator – keep up the great work!
+## In the next phase, we'll focus on the `utils` folder, where we'll implement a logging utility to keep track of what's happening in our application. We're getting closer to a fully operational Minecraft world generator – keep up the great work!
