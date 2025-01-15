@@ -1,3 +1,4 @@
+from typing import List, Dict, Any
 from PyQt6.QtWidgets import QWidget, QApplication, QMessageBox
 from PyQt6.QtGui import QImage, QPainter, QColor, QPen, QFont
 from PyQt6.QtCore import Qt, QTimer
